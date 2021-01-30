@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 )
-
 func getHTMLPage(url string)*goquery.Document{
 	res,err :=http.Get(url)
 	if err !=nil{
@@ -25,28 +24,37 @@ func getHTMLPage(url string)*goquery.Document{
 	}
 	return doc
 }
-func (files *Files) getAllFileInformation(doc *goquery.Document,category string){
+func (files *Files) getAllFileInformation(doc *goquery.Document,category string,errors chan <- error){
 	var wg sync.WaitGroup
-	doc.Find("").Each(func(i int, s *goquery.Selection){
+	doc.Find(".lib-grid .top a").Each(func(i int, s *goquery.Selection){ //lấy danh sách các file trong 1 category
 		fileLink,_ := s.Attr("href")
 		wg.Add(1)
-		go files.getFileInformation(fileLink,category,&wg)
+		//fmt.Println(fileLink)
+		go files.getFileInformation("https://hocmai.vn"+fileLink,category,&wg,errors)
 	})
 	wg.Wait()
 }
+//func main() {
+//	//results :=make(chan Category,100)
+//	errors :=make(chan error,1000)
+//	files := newFiles()
+//	files.getAllFileInformation(getHTMLPage("https://hocmai.vn/kho-tai-lieu/list.php?category=204"),"ád",errors)
+//}
 func (files *Files) getNextUrl(doc *goquery.Document) string{
 	nextPageLink,_:=doc.Find(".paging a:last-child").Attr("href")
-	fmt.Println(nextPageLink)
+	//fmt.Println(nextPageLink)
 	if nextPageLink == ""{
 		println("End of Category")
 		return ""
 	}
 	return "https://hocmai.vn/kho-tai-lieu/"+nextPageLink
 }
-func (files *Files) getFileInformation(fileLink string,category string,wg *sync.WaitGroup){
+func (files *Files) getFileInformation(fileLink string,category string,wg *sync.WaitGroup,errors chan <- error){
+	//đọc thông tin từng file
 	defer wg.Done()
 	res:=getHTMLPage(fileLink)
 	if res==nil{
+		errors <- fmt.Errorf("Page not found")
 		return
 	}
 	title := res.Find(".lib-section .head h4").Text()
@@ -55,32 +63,54 @@ func (files *Files) getFileInformation(fileLink string,category string,wg *sync.
 	numberDownloaded := res.Find(".lib-meta ul li:nth-child(3) span").Text()
 	author := res.Find(".lib-meta ul li:nth-child(4) span").Text()
 	date := res.Find(".lib-meta ul li:nth-child(5) span").Text()
-	fmt.Println(title)
 	numberPage = strings.TrimSpace(strings.Split(numberPage,":")[1])
 	numberViewed = strings.TrimSpace(strings.Split(numberViewed,":")[1])
 	numberDownloaded = strings.TrimSpace(strings.Split(numberDownloaded,":")[1])
 	author = strings.TrimSpace(strings.Split(author,":")[1])
-	//fmt.Println(strings.TrimSpace(strings.Split(numberPage,":")[1]))
-	//fmt.Println(strings.TrimSpace(strings.Split(numberViewed,":")[1]))
-	//fmt.Println(strings.TrimSpace(strings.Split(numberDownloaded,":")[1]))
-	//fmt.Println(strings.TrimSpace(strings.Split(author,":")[1]))
-	fmt.Println(date)
-	urlString := fileLink
-	ID:= strings.Split(urlString,"?")[1]
-	fmt.Println(ID)
-	file:=File{
-		ID: ID,
-		Title: title,
-		numberPage: numberPage,
-		numberViewed: numberViewed,
-		numberDownloaded: numberDownloaded,
-		Author: author,
-		Date: date,
+	var flagCheck bool
+	flagCheck = true
+	if author == ""{
+		errors <- fmt.Errorf("Author is Empty")
+		flagCheck = false
 	}
-	//fileJson,err := json.Marshal(file)
-	//checkError(err)
-	files.TotalPages++
-	files.List = append(files.List,file)
+	if title == ""{
+		errors <- fmt.Errorf("Title is Empty")
+		flagCheck = false
+	}
+	if numberPage == ""{
+		errors <- fmt.Errorf("numberPage is Empty")
+		flagCheck = false
+	}
+	if numberViewed == ""{
+		errors <- fmt.Errorf("numberViewed is Empty")
+		flagCheck = false
+	}
+	if numberDownloaded == ""{
+		errors <- fmt.Errorf("numberDownloaded is Empty")
+		flagCheck = false
+	}
+	if date == ""{
+		errors <- fmt.Errorf("date is Empty")
+		flagCheck = false
+	}
+	if flagCheck ==true {
+		urlString := fileLink
+		ID:= strings.Split(urlString,"?")[1]
+		file:=File{
+			ID: ID,
+			Title: title,
+			numberPage: numberPage,
+			numberViewed: numberViewed,
+			numberDownloaded: numberDownloaded,
+			Author: author,
+			Date: date,
+		}
+		//fileJson,err := json.Marshal(file)
+		//checkError(err)
+		files.TotalPages++
+		files.CategoryName = category
+		files.List = append(files.List,file)
+	}
 }
 func checkError(err error) {
 	if err != nil {

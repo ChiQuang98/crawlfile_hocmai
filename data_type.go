@@ -8,6 +8,7 @@ type Categories struct {
 	Total int        `json:"total"`
 	List  []Category `json:"categories"`
 }
+
 type File struct {
 	ID string `json:"ID"`
 	Title string `json:"title"`
@@ -18,6 +19,7 @@ type File struct {
 	Date string `json:Date`
 }
 type Files struct{
+	CategoryName string `json:"categoryname"`
 	TotalFiles int `json:"totalfiles"`
 	TotalPages int `json:"totalpages"`
 	List []File `json:"files"`
