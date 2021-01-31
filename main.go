@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"sync"
@@ -10,36 +11,57 @@ import (
 )
 
 func main() {
+	var wg sync.WaitGroup
 	file,_:=ioutil.ReadFile("categories.json")
 	categoires:=Categories{}
 	_ = json.Unmarshal([]byte(file),&categoires)
 	jobs := make(chan Category,100)
-	results :=make(chan Category,100)
-	errors :=make(chan error,1000)
-	crawlAllFromCategories(jobs,results,errors)
+	results :=make(chan File,10000)
+	errors :=make(chan error,100)
+	crawlAllFromCategories(jobs,results,errors,&wg)
 	for true{
-		fmt.Println("IN")
+		//fmt.Println("IN")
 		for i:=0;i<len(categoires.List) ;i++{
+			fmt.Println("IN")
+			fmt.Println(categoires.List[i])
 			jobs<-categoires.List[i]
 		}
-		close(jobs)
 		select {
 		case err := <-errors:
 			fmt.Println("Error: ",err.Error())
 		default:
 		}
-		time.Sleep(3*time.Hour)
-
+		close(jobs)
+		for true{
+			select {
+			case fileReceive := <- results:
+				//dt := time.Now()
+				f, _ := os.OpenFile("./output/"+fileReceive.CategoryName+".json", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+				defer f.Close()
+				fileJSON, err := json.Marshal(fileReceive)
+				checkError(err)
+				io.WriteString(f,string(fileJSON)+"\n")
+				fmt.Println(fileReceive.CategoryName)
+			}
+		}
+		fmt.Println("DONE SESSION")
+		time.Sleep(3 * time.Hour)
 	}
+
+	close(jobs)
+	wg.Wait()
+
+
+
+
 }
-func crawlAllFromCategories(jobs<- chan Category,results chan <-  Category,errors chan <- error){
-	var wg sync.WaitGroup
+func crawlAllFromCategories(jobs<- chan Category,results chan <- File,errors chan <- error,wg *sync.WaitGroup){
 	for w:=1;w<=10;w++{
 		wg.Add(1)
-		go worker(w,jobs,results,errors,&wg)
+		go worker(w,jobs,results,errors,wg)
 	}
 }
-func worker(id int,jobs<-chan Category,results chan <- Category,errors chan <- error,wg *sync.WaitGroup){
+func worker(id int,jobs<-chan Category,results chan <- File,errors chan <- error,wg *sync.WaitGroup){
 	defer wg.Done()
 
 	if _, err := os.Stat("./output"); os.IsNotExist(err) {
@@ -48,10 +70,10 @@ func worker(id int,jobs<-chan Category,results chan <- Category,errors chan <- e
 	for j:= range jobs {//duyệt qua tất cả category
 		//dt := time.Now()
 		fmt.Println("worker: ", id, "processing job: ", j)
-		crawlFromCategory(j,errors)
+		crawlFromCategory(j,results,errors)
 	}
 }
-func crawlFromCategory(category Category,errors chan <- error)  {
+func crawlFromCategory(category Category,results chan <- File,errors chan <- error)  {
 	files:= newFiles()
 	res:=getHTMLPage(category.URL)
 	if res == nil{
@@ -59,8 +81,10 @@ func crawlFromCategory(category Category,errors chan <- error)  {
 		return
 	}
 	//Chuyeen file page HTML cua 1 category
-	files.getAllFileInformation(res,category.Title,errors)
+	files.CategoryName = category.Title
+	files.getAllFileInformation(res,results,category.Title,errors)
 	files.TotalPages++
+
 	for i:=2;i<=200;i++{
 		files.TotalPages++
 		nextPageLink := files.getNextUrl(res)
@@ -71,9 +95,10 @@ func crawlFromCategory(category Category,errors chan <- error)  {
 		if res == nil{
 			break
 		}
-		files.getAllFileInformation(res,category.Title,errors)
+		files.getAllFileInformation(res,results,category.Title,errors)
 	}
-	filesJson,err := json.Marshal(files)
-	checkError(err)
-	err = ioutil.WriteFile("categories.json",filesJson,0644)
+
+	//filesJson,err := json.Marshal(files)
+	//checkError(err)
+	//Sau khi load hết một category thì chuyển category files đó cho result channel
 }

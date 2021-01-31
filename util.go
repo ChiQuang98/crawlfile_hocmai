@@ -24,13 +24,13 @@ func getHTMLPage(url string)*goquery.Document{
 	}
 	return doc
 }
-func (files *Files) getAllFileInformation(doc *goquery.Document,category string,errors chan <- error){
+func (files *Files) getAllFileInformation(doc *goquery.Document,results chan <- File,category string,errors chan <- error){
 	var wg sync.WaitGroup
-	doc.Find(".lib-grid .top a").Each(func(i int, s *goquery.Selection){ //lấy danh sách các file trong 1 category
+	doc.Find(".lib-grid .top a").Each(func(i int, s *goquery.Selection){ //lấy danh sách các file trong 1 category của 1 page
 		fileLink,_ := s.Attr("href")
 		wg.Add(1)
 		//fmt.Println(fileLink)
-		go files.getFileInformation("https://hocmai.vn"+fileLink,category,&wg,errors)
+		go files.getFileInformation("https://hocmai.vn"+fileLink,results,category,&wg,errors)
 	})
 	wg.Wait()
 }
@@ -49,7 +49,11 @@ func (files *Files) getNextUrl(doc *goquery.Document) string{
 	}
 	return "https://hocmai.vn/kho-tai-lieu/"+nextPageLink
 }
-func (files *Files) getFileInformation(fileLink string,category string,wg *sync.WaitGroup,errors chan <- error){
+//func main() {
+//	files := newFiles()
+//	fmt.Println(files.getNextUrl(getHTMLPage("https://hocmai.vn/kho-tai-lieu/list.php?type=category&category=301&page=0")))
+//}
+func (files *Files) getFileInformation(fileLink string,results chan <- File,category string,wg *sync.WaitGroup,errors chan <- error){
 	//đọc thông tin từng file
 	defer wg.Done()
 	res:=getHTMLPage(fileLink)
@@ -97,6 +101,7 @@ func (files *Files) getFileInformation(fileLink string,category string,wg *sync.
 		urlString := fileLink
 		ID:= strings.Split(urlString,"?")[1]
 		file:=File{
+			CategoryName: strings.TrimSpace(category),
 			ID: ID,
 			Title: title,
 			numberPage: numberPage,
@@ -110,6 +115,8 @@ func (files *Files) getFileInformation(fileLink string,category string,wg *sync.
 		files.TotalPages++
 		files.CategoryName = category
 		files.List = append(files.List,file)
+		results <- file
+		//fmt.Println(file)
 	}
 }
 func checkError(err error) {

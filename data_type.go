@@ -10,6 +10,7 @@ type Categories struct {
 }
 
 type File struct {
+	CategoryName string `json:"categoryname"`
 	ID string `json:"ID"`
 	Title string `json:"title"`
 	numberPage string `json:"numberpage"`
