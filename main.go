@@ -26,34 +26,29 @@ func main() {
 			fmt.Println(categoires.List[i])
 			jobs<-categoires.List[i]
 		}
-		select {
-		case err := <-errors:
-			fmt.Println("Error: ",err.Error())
-		default:
-		}
-		close(jobs)
+		//close(jobs)
 		for true{
 			select {
-			case fileReceive := <- results:
+			case fileReceive,open := <- results:
 				//dt := time.Now()
+				if !open{
+					break
+				}
 				f, _ := os.OpenFile("./output/"+fileReceive.CategoryName+".json", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 				defer f.Close()
 				fileJSON, err := json.Marshal(fileReceive)
 				checkError(err)
 				io.WriteString(f,string(fileJSON)+"\n")
 				fmt.Println(fileReceive.CategoryName)
+			case err := <-errors:
+				fmt.Println("Error: ", err.Error())
+			default:
 			}
 		}
 		fmt.Println("DONE SESSION")
 		time.Sleep(3 * time.Hour)
 	}
-
-	close(jobs)
 	wg.Wait()
-
-
-
-
 }
 func crawlAllFromCategories(jobs<- chan Category,results chan <- File,errors chan <- error,wg *sync.WaitGroup){
 	for w:=1;w<=10;w++{
