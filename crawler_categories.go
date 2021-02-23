@@ -6,6 +6,8 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"io/ioutil"
 )
+
+
 func (categories *Categories) getAllCategories(doc *goquery.Document) {
 	doc.Find(".lib-sbar>ul>li>a").Each(func(i int, s *goquery.Selection){
 		cateLink,_:= s.Attr("href")

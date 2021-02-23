@@ -1,4 +1,5 @@
 package main
+
 type Category struct{
 	Title string `json:"title"`
 	URL string `json:"url"`
@@ -25,6 +26,7 @@ type Files struct{
 	TotalPages int `json:"totalpages"`
 	List []File `json:"files"`
 }
+
 func newCategoires() *Categories  {
 	return &Categories{}
 }
